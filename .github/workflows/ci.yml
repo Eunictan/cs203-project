@@ -1,0 +1,50 @@
+name: CI
+
+# Run on every pull request into main, and on every merge into main
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    # A temporary Postgres database for the tests, matching the local dev settings
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: healthwatch
+          POSTGRES_USER: healthwatch
+          POSTGRES_PASSWORD: healthwatch
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    # All commands run inside the backend folder
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+
+      - name: Install Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Make the Maven wrapper runnable
+        run: chmod +x mvnw
+
+      - name: Build and run tests
+        run: ./mvnw -B verify
