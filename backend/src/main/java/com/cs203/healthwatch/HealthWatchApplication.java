@@ -11,6 +11,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class HealthWatchApplication {
 
     public static void main(String[] args) {
-            SpringApplication.run(HealthWatchApplication.class, args);
+        SpringApplication.run(HealthWatchApplication.class, args);
     }
 }
