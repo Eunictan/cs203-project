@@ -2,9 +2,10 @@ spring:
   application:
     name: healthwatch-backend
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/healthwatch}
-    username: ${DB_USERNAME:healthwatch}
-    password: ${DB_PASSWORD:healthwatch}
+    url: ${SUPABASEDB_URL}
+    password: ${SUPABASEDB_PW}
+    username: ${SUPABASEDB_USERNAME}
+    driver-class-name: org.postgresql.Driver
   jpa:
     open-in-view: false
     show-sql: true
@@ -16,6 +17,10 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  task:
+    scheduling:
+      pool:
+        size: ${SCHEDULER_POOL_SIZE:4}
 
 server:
   port: ${PORT:8080}
@@ -42,3 +47,20 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+
+ingestion:
+  scheduling:
+    enabled: ${INGESTION_SCHEDULING_ENABLED:true}
+    fixed-delay-ms: ${INGESTION_SCHEDULING_FIXED_DELAY_MS:3600000}
+  http:
+    connect-timeout: ${INGESTION_HTTP_CONNECT_TIMEOUT:PT5S} # How long to wait while trying to establish a connection to the AQI server before giving up.
+    read-timeout: ${INGESTION_HTTP_READ_TIMEOUT:PT10S} # Once connected, how long to wait for the server to actually send back data before giving up.
+    max-attempts: ${INGESTION_HTTP_MAX_ATTEMPTS:3} # How many times FetchClient will attempt the whole fetch if it fails, before giving up for this cycle.
+    initial-backoff: ${INGESTION_HTTP_INITIAL_BACKOFF:PT2S} # How long to wait before retrying after a failed attempt.
+
+pm:
+  source:
+    url: ${PM_SOURCE_URL:https://api-open.data.gov.sg/v2/real-time/api/pm25}
+    name: ${PM_SOURCE_NAME:datagovsg_pm25}
+    type: ${PM_SOURCE_TYPE:air_quality}
+    region: ${PM_SOURCE_REGION:central}
