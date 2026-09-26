@@ -5,6 +5,8 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/healthwatch}
     username: ${DB_USERNAME:healthwatch}
     password: ${DB_PASSWORD:healthwatch}
+    hikari:
+      connection-timeout: 5000
   jpa:
     open-in-view: false
     show-sql: true
