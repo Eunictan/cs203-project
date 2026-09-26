@@ -28,5 +28,8 @@ public class DetectedEvent extends BaseEntity {
     @Column(nullable = false)
     private EventStatus status;
 
-    private boolean isReplay = false;
+    // Named "replay" (not "isReplay") so Lombok generates isReplay()/setReplay()
+    // and Spring Data queries can refer to it as "Replay"
+    @Column(name = "is_replay", nullable = false)
+    private boolean replay = false;
 }

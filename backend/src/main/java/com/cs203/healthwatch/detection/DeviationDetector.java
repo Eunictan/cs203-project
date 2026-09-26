@@ -1,49 +1,72 @@
 package com.cs203.healthwatch.detection;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
-public class DeviationDetector {
+public final class DeviationDetector {
+
+    private DeviationDetector() {
+        // static utility, not instantiable
+    }
 
     /**
-     * @param baseline        may be empty — caller must handle "no baseline" case
-     * @param recentReadings  most recent readings for this region+signal, ordered oldest→newest
+     * Flags a sustained high deviation: the last N readings must all be above the
+     * threshold, be valid numbers, and be spaced no further apart than maxGap.
+     *
+     * @param baseline            may be empty; caller handles the "no baseline" case
+     * @param recentReadings      readings for this region+signal, ordered oldest to newest
+     * @param zThreshold          robust z-score a reading must exceed (high direction only)
+     * @param consecutiveRequired how many consecutive readings must breach (must be >= 1)
+     * @param maxGap              largest allowed time between consecutive readings
      * @return a Deviation if the sustained-spike condition is met, otherwise empty
      */
     public static Optional<Deviation> detect(
             Optional<BaselineSnapshot> baseline,
             List<ReadingSnapshot> recentReadings,
             double zThreshold,
-            int consecutiveRequired
+            int consecutiveRequired,
+            Duration maxGap
     ) {
+        if (consecutiveRequired < 1) {
+            throw new IllegalArgumentException("consecutiveRequired must be at least 1");
+        }
         if (baseline.isEmpty()) {
-            return Optional.empty(); // "skip detection, log a message" happens in the caller
+            return Optional.empty(); // caller logs "no baseline, skipping"
         }
         if (recentReadings.size() < consecutiveRequired) {
             return Optional.empty(); // not enough data yet
         }
 
         BaselineSnapshot b = baseline.get();
+        if (b.scaledMad() <= 0) {
+            return Optional.empty(); // flat history: z-scores are meaningless
+        }
 
         List<ReadingSnapshot> lastN = recentReadings.subList(
                 recentReadings.size() - consecutiveRequired, recentReadings.size());
 
-        boolean allBreached = true;
-        double maxAbsZ = 0.0;
+        double maxZ = Double.NEGATIVE_INFINITY;
 
-        for (ReadingSnapshot r : lastN) {
-            if (r == null) {
-                return Optional.empty(); // gap = no event
+        for (int i = 0; i < lastN.size(); i++) {
+            ReadingSnapshot r = lastN.get(i);
+
+            if (r == null || Double.isNaN(r.value())) {
+                return Optional.empty(); // invalid reading: no event
             }
-            double z = robustZ(r.value(), b.median(), b.scaledMad());
-            maxAbsZ = Math.max(maxAbsZ, Math.abs(z));
+
+            if (i > 0) {
+                Duration step = Duration.between(lastN.get(i - 1).observedAt(), r.observedAt());
+                if (step.compareTo(maxGap) > 0) {
+                    return Optional.empty(); // gap in readings: not consecutive
+                }
+            }
+
+            double z = (r.value() - b.median()) / b.scaledMad();
             if (z <= zThreshold) {
-                allBreached = false;
+                return Optional.empty(); // at least one reading not breaching: no event
             }
-        }
-
-        if (!allBreached) {
-            return Optional.empty(); // single spike among the N = no event
+            maxZ = Math.max(maxZ, z);
         }
 
         ReadingSnapshot latest = lastN.get(lastN.size() - 1);
@@ -51,14 +74,7 @@ public class DeviationDetector {
                 latest.region(),
                 latest.signalType(),
                 latest.observedAt(),
-                maxAbsZ
+                maxZ
         ));
-    }
-
-    private static double robustZ(double value, double median, double scaledMad) {
-        if (scaledMad == 0) {
-            return value == median ? 0.0 : Double.MAX_VALUE;
-        }
-        return (value - median) / scaledMad;
     }
 }
